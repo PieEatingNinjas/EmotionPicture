@@ -1,0 +1,54 @@
+﻿#r "System.Web.Extensions"
+
+using System.Net;
+using System;
+using System.IO;
+using System.Net.Http.Headers;
+using System.Net.Http;
+using System.Web.Script.Serialization;
+using System.Collections.Generic;
+using System.Linq;
+
+public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, TraceWriter log)
+{
+	log.Info("C# HTTP trigger function processed a request.");
+	log.Info("content: " + req.Content);
+	
+	dynamic body = await req.Content.ReadAsAsync<object>();
+	
+	string data = body.Data;
+	log.Info("DATA: " + data);
+	var client = new HttpClient();
+	
+	client.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", "YOUR KEY");
+	
+	string uri = "https://westus.api.cognitive.microsoft.com/emotion/v1.0/recognize?";
+	HttpResponseMessage response;
+	string responseContent;
+	
+	byte[] byteData = Convert.FromBase64String(data);
+	
+	using (var content = new ByteArrayContent(byteData))
+	{
+	    content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+	    response = await client.PostAsync(uri, content);
+	    responseContent = response.Content.ReadAsStringAsync().Result;
+	}
+	
+	//A peak at the JSON response.
+	log.Info(responseContent);
+	
+	var deserializer = new JavaScriptSerializer();
+	var someObject = deserializer.Deserialize<dynamic>(responseContent);
+	Dictionary<string, object> dictionary = (Dictionary<string, object>)someObject[0]["scores"];
+	
+	
+	var sortedDict = from entry in dictionary orderby double.Parse(entry.Value.ToString()) descending select entry;
+	
+	var emotion = sortedDict.FirstOrDefault().Key;
+	log.Info(emotion);
+	
+	return data == null
+		? req.CreateResponse(HttpStatusCode.BadRequest, "Please pass a Data on the query string or in the request body")
+		: req.CreateResponse(HttpStatusCode.OK, emotion);
+}

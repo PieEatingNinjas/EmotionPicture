@@ -1,0 +1,76 @@
+﻿var request = require('request');
+
+
+console.log("Starting function");
+
+// add your initialization code here
+
+module.exports = function(changeEvent) {
+  // event handler code goes here
+
+  console.log("Changes in realm at:", changeEvent.path);
+
+  var realm = changeEvent.realm;
+
+  for (var className in changeEvent.changes) {
+    var changes = changeEvent.changes[className];
+    var objects = realm.objects(className);
+
+    console.log("Changes in Model:", className);
+
+    var i, pos;
+    for (i = 0; i < changes.insertions.length; i++) {
+      pos = changes.insertions[i];
+      console.log("- object inserted at position", pos, ":", objects[pos]);
+      
+      var pic = objects[pos];
+      
+      // Set the headers
+      var headers = {
+          'User-Agent':       'Realm Agent/0.0.1',
+          'content-type': 'application/json',
+      };
+
+      // Configure the request
+      var options = {
+          url: 'https://FOO.azurewebsites.net/api/YOUR_AZURE_FUNCTION_URL',
+          method: 'POST',
+          headers: headers,
+          body: "{'Data': '" + pic.Data + "'}"
+      };
+
+      // Start the request
+      request(options, function (error, response, body) {
+          if (!error && response.statusCode == 200) {
+              // Print out the response body
+              console.log(body);
+              realm.write(() => {
+              pic.Emotion = body;
+              });
+          }
+          else
+          {
+            console.log(error);
+            console.log(response);
+          }
+      });
+      
+      
+    }
+    for (i = 0; i < changes.modifications.length; i++) {
+      pos = changes.modifications[i];
+      console.log("- object modified at position", pos, ":", objects[pos]);
+    }
+    for (i = 0; i < changes.deletions.length; i++) {
+      pos = changes.deletions[i];
+      console.log("- object deleted at position", pos);
+    }
+  }
+  console.log("");
+};
+
+// ----------------------------------------------------------------------------------------------
+// NOTICE: The Developer Edition is currently limited to 3 running functions in the Beta version.
+// Other limitations may apply in the final release.
+// Professional and Enterprise Editions does not have any limitations.
+// ----------------------------------------------------------------------------------------------
